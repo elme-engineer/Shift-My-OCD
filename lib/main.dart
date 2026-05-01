@@ -1,24 +1,35 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
-void main() async {
+import 'core/lifecycle_observer.dart';
+import 'core/theme.dart';
+import 'features/home/home_screen.dart';
+import 'firebase_options.dart';
+import 'services/analytics_service.dart';
+import 'services/auth_service.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. Firebase + offline persistence (default-on, but explicit is fine).
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  // Enable offline persistence (already on by default for mobile, but explicit is fine)
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Skip auth flow for the demo
-  await FirebaseAuth.instance.signInAnonymously();
+  // 2. Make sure we have an (anonymous) UID before any service runs.
+  final auth = AuthService();
+  await auth.ensureSignedIn();
+
+  // 3. Wire up app-open tracking. Cold start counts immediately;
+  //    foreground resumes are caught by the binding observer.
+  final analytics = AnalyticsService();
+  final lifecycle = LifecycleObserver(analytics);
+  WidgetsBinding.instance.addObserver(lifecycle);
+  await lifecycle.logInitialOpen();
 
   runApp(const ShiftMyOcdApp());
 }
@@ -30,36 +41,9 @@ class ShiftMyOcdApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Shift My OCD',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.teal),
-      home: const _DebugHome(),
-    );
-  }
-}
-
-// Temporary screen to verify Firestore is connected — delete after confirming
-class _DebugHome extends StatelessWidget {
-  const _DebugHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Shift My OCD')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            await FirebaseFirestore.instance.collection('debug').add({
-              'hello': 'world',
-              'at': FieldValue.serverTimestamp(),
-            });
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Wrote to Firestore ✓')),
-              );
-            }
-          },
-          child: const Text('Test Firestore'),
-        ),
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      home: const HomeScreen(),
     );
   }
 }
