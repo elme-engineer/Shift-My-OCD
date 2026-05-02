@@ -119,7 +119,6 @@ class _ObjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasDesc = object.description.isNotEmpty;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -151,19 +150,6 @@ class _ObjectCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    // Description shown only when user provided one.
-                    if (hasDesc) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        object.description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                     const SizedBox(height: 2),
                     Text(
                       _lastCheckedLabel(object.lastCheckedAt),
@@ -339,13 +325,15 @@ class _AddObjectSheetState extends State<_AddObjectSheet> {
                 maxLength: 200,
                 decoration: const InputDecoration(
                   labelText: 'Description (optional)',
-                  hintText: 'e.g. "Main lock + deadbolt — both must be turned"',
+                  hintText:
+                      'e.g. "Main lock + deadbolt — both must be turned"',
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
                 validator: (v) {
-                  // Optional field — only validate length.
-                  if ((v?.length ?? 0) > 200) return 'Keep it under 200 characters';
+                  if ((v?.length ?? 0) > 200) {
+                    return 'Keep it under 200 characters';
+                  }
                   return null;
                 },
               ),

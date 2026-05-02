@@ -19,6 +19,7 @@ class ObjectQrScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final payload = _qr.encode(object.id);
+    final hasDesc = object.description.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(title: Text(object.name)),
@@ -41,8 +42,39 @@ class ObjectQrScreen extends StatelessWidget {
                   ),
                 ],
               ),
+
+              // Description sits between the title and the QR code.
+              // It's the user's own reminder of what to actually
+              // check ("did I lock both bolts?") and reads while
+              // they're already looking at the QR to scan.
+              if (hasDesc) ...[
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border(
+                      left: BorderSide(
+                        color: theme.colorScheme.primary,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    object.description,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: AppSpacing.lg),
-              // Card holds the QR on a white background so it
+              // QR card holds the code on a white background so it
               // scans reliably even on a dark theme.
               Expanded(
                 child: Center(
@@ -56,8 +88,6 @@ class ObjectQrScreen extends StatelessWidget {
                           data: payload,
                           version: QrVersions.auto,
                           gapless: true,
-                          // QR rendering must stay on white pixels —
-                          // hard-code black to avoid theme contrast issues.
                           eyeStyle: const QrEyeStyle(
                             eyeShape: QrEyeShape.square,
                             color: Colors.black,

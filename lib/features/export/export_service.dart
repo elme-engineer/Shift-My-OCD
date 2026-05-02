@@ -11,11 +11,15 @@ import '../analytics/analytics_screen.dart' show TrustScore;
 /// hands it to the system share sheet. Designed for the user to
 /// email/airdrop to their therapist after a session.
 ///
-/// We render the bar chart natively in pdf widgets (not by capturing
-/// the on-screen fl_chart) so the report can be generated even from
-/// background isolates if we ever need to.
+/// The optional [aiSummary] is rendered as the first block on the
+/// page (immediately under the header). Pass null to omit the
+/// section entirely or pass a fallback string when the LLM call
+/// failed — the PDF stays well-formed either way.
 class ExportService {
-  Future<void> exportPdf({required List<EventLog> events}) async {
+  Future<void> exportPdf({
+    required List<EventLog> events,
+    String? aiSummary,
+  }) async {
     final doc = pw.Document();
     final score = TrustScore.compute(events);
     final stats = DailyStats.aggregate(events);
@@ -27,23 +31,24 @@ class ExportService {
         '${DateFormat.yMMMd().format(cutoff)} – ${DateFormat.yMMMd().format(today)}';
 
     doc.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(36),
-        build: (ctx) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            _header(dateRange),
-            pw.SizedBox(height: 18),
-            _scoreBlock(score),
-            pw.SizedBox(height: 18),
-            _chartBlock(stats),
-            pw.SizedBox(height: 18),
-            _peaksBlock(peaks),
-            pw.Spacer(),
-            _footer(),
+        build: (ctx) => [
+          _header(dateRange),
+          pw.SizedBox(height: 14),
+          if (aiSummary != null) ...[
+            _summaryBlock(aiSummary),
+            pw.SizedBox(height: 16),
           ],
-        ),
+          _scoreBlock(score),
+          pw.SizedBox(height: 16),
+          _chartBlock(stats),
+          pw.SizedBox(height: 16),
+          _peaksBlock(peaks),
+          pw.SizedBox(height: 24),
+          _footer(),
+        ],
       ),
     );
 
@@ -70,6 +75,46 @@ class ExportService {
         ),
         pw.Divider(),
       ],
+    );
+  }
+
+  static pw.Widget _summaryBlock(String summary) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        borderRadius: pw.BorderRadius.circular(8),
+        border: pw.Border.all(color: PdfColors.grey300),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'PLAIN-ENGLISH SUMMARY',
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            summary,
+            style: const pw.TextStyle(fontSize: 11, lineSpacing: 2),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            'Generated automatically from this week\'s data — not a clinical assessment.',
+            style: pw.TextStyle(
+              fontSize: 8,
+              color: PdfColors.grey600,
+              fontStyle: pw.FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -21,6 +21,9 @@ class TrackedObject {
   final String id;
   final String name;
 
+  /// Free-form notes — e.g. "main lock + deadbolt", reminders to
+  /// the user about what to actually look for. May be empty;
+  /// the UI hides the row when blank rather than rendering placeholder.
   final String description;
 
   /// Key into the icon catalog. Stored as a string (not an IconData
@@ -44,7 +47,8 @@ class TrackedObject {
     return TrackedObject(
       id: id,
       name: (map['name'] as String?) ?? 'Untitled',
-      description: (map ['description'] as String?) ?? 'No description',
+      // Empty default — the UI decides whether to render placeholder copy.
+      description: (map['description'] as String?) ?? '',
       iconKey: (map['icon'] as String?) ?? 'home',
       tagId: (map['tagId'] as String?) ?? id,
       tagType: (map['tagType'] as String?) ?? 'qr',
@@ -61,6 +65,7 @@ class TrackedObject {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'description': description,
       'icon': iconKey,
       'tagId': tagId,
       'tagType': tagType,

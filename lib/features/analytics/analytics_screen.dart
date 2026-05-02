@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../../models/daily_stats.dart';
 import '../../models/event_log.dart';
+import '../../models/tracked_object.dart';
 import '../../services/analytics_service.dart';
+import '../../services/llm_service.dart';
 import '../export/export_service.dart';
 import 'widgets/anxiety_chart.dart';
 
@@ -17,7 +19,11 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   final _analytics = AnalyticsService();
   final _export = ExportService();
-  bool _exporting = false;
+  final _llm = LlmService();
+
+  // Two-step status so the user knows what's slow and what isn't.
+  // null = idle, "summary" = waiting on LLM, "pdf" = building PDF.
+  String? _exportStage;
 
   @override
   Widget build(BuildContext context) {
@@ -26,15 +32,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         title: const Text('Analytics'),
         actions: [
           IconButton(
-            tooltip: 'Export PDF',
-            icon: _exporting
+            tooltip: _exportStage == null
+                ? 'Export PDF'
+                : _exportStage == 'summary'
+                    ? 'Writing summary…'
+                    : 'Building PDF…',
+            icon: _exportStage != null
                 ? const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.picture_as_pdf_outlined),
-            onPressed: _exporting ? null : _onExport,
+            onPressed: _exportStage != null ? null : _onExport,
           ),
         ],
       ),
@@ -47,7 +57,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           final events = snap.data!;
           final score = TrustScore.compute(events);
           final stats = DailyStats.aggregate(events);
-          final peaks = _peakHours(events);
+          final peaks = _peakHoursFromEvents(events);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -67,12 +77,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
+  /// Two-stage export:
+  ///   1. Build the LLM context from current data and ask the model
+  ///      for a 2-paragraph summary. Shows a "writing summary" toast.
+  ///   2. Render and share the PDF (with or without the summary).
+  ///
+  /// If the LLM call fails (no key, network, etc.) we still export —
+  /// the summary section just gets omitted from the PDF.
   Future<void> _onExport() async {
-    setState(() => _exporting = true);
+    setState(() => _exportStage = 'summary');
+
     try {
-      final events =
-          await _analytics.watchEvents().first; // current snapshot
-      await _export.exportPdf(events: events);
+      // Snapshot current events (we re-read so we're not racing the stream).
+      final events = await _analytics.watchEvents().first;
+      final objects = await _analytics.watchObjects().first;
+
+      String? summary;
+      if (_llm.isConfigured) {
+        final ctx = _buildLlmContext(events: events, objects: objects);
+        summary = await _llm.generateSummary(ctx);
+        if (summary == null && mounted) {
+          // Surface the failure but keep going — therapist still gets the data.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Couldn\'t generate AI summary — exporting raw data only.',
+              ),
+            ),
+          );
+        }
+      }
+
+      if (mounted) setState(() => _exportStage = 'pdf');
+      await _export.exportPdf(events: events, aiSummary: summary);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -80,13 +117,76 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _exporting = false);
+      if (mounted) setState(() => _exportStage = null);
     }
   }
 
-  /// Top 3 hours-of-day with the most app_opens. Used to surface
-  /// "your anxiety peaks at 11pm and 7am" in the report.
-  static List<MapEntry<int, int>> _peakHours(List<EventLog> events) {
+  /// Builds the structured payload the LLM sees. Indexes objects by id
+  /// so we can attach human-readable names (not "obj_xyz") to scan counts.
+  LlmReportContext _buildLlmContext({
+    required List<EventLog> events,
+    required List<TrackedObject> objects,
+  }) {
+    final score = TrustScore.compute(events);
+    final stats = DailyStats.aggregate(events);
+
+    // Last 7 days, oldest first — so the model sees the trend.
+    final today = DateTime.now();
+    final daysOldestFirst = List.generate(7, (i) {
+      final d = today.subtract(Duration(days: 6 - i));
+      return EventLog.dateKeyOf(d);
+    });
+    final daily = <Map<String, Object>>[];
+    var totalOpens = 0;
+    var totalScans = 0;
+    for (final key in daysOldestFirst) {
+      final s = stats[key];
+      final opens = s?.appOpens ?? 0;
+      final scans = s?.tagScans ?? 0;
+      totalOpens += opens;
+      totalScans += scans;
+      daily.add({
+        'day': _shortWeekday(key),
+        'opens': opens,
+        'scans': scans,
+      });
+    }
+
+    // Peak hours
+    final peaks = _peakHoursFromEvents(events).take(3).map((e) {
+      return {'hour': e.key, 'opens': e.value};
+    }).toList();
+
+    // Top objects by scan count (with name lookup, deleted ones omitted)
+    final byId = {for (final o in objects) o.id: o};
+    final topObjects = scansByObject(events).take(5).where((e) {
+      return byId.containsKey(e.key);
+    }).map((e) {
+      return <String, Object>{
+        'name': byId[e.key]!.name,
+        'scans': e.value,
+      };
+    }).toList();
+
+    final cutoff = today.subtract(const Duration(days: 6));
+    return LlmReportContext(
+      dateRange:
+          '${EventLog.dateKeyOf(cutoff)} to ${EventLog.dateKeyOf(today)}',
+      trustScore: score.value,
+      trustBand: score.band,
+      passiveOpens: score.passiveOpens,
+      hoursSinceLastCheck: score.hoursSinceLastTap,
+      clusteringEvents: score.tapClustering,
+      streakDays: score.streakDays,
+      totalAppOpens: totalOpens,
+      totalTagScans: totalScans,
+      daily: daily,
+      peakHours: peaks,
+      topObjects: topObjects,
+    );
+  }
+
+  static List<MapEntry<int, int>> _peakHoursFromEvents(List<EventLog> events) {
     final byHour = <int, int>{};
     for (final e in events) {
       if (e.type != EventType.appOpen) continue;
@@ -94,7 +194,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
     final sorted = byHour.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(3).toList();
+    return sorted;
+  }
+
+  static String _shortWeekday(String dateKey) {
+    final parts = dateKey.split('-').map(int.parse).toList();
+    final d = DateTime(parts[0], parts[1], parts[2]);
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return names[d.weekday - 1];
   }
 }
 
@@ -134,7 +241,6 @@ class TrustScore {
   factory TrustScore.compute(List<EventLog> events) {
     final asc = events.reversed.toList();
 
-    // passive_opens: app_opens with no tag_scan within +2 min
     var passive = 0;
     for (var i = 0; i < asc.length; i++) {
       final e = asc[i];
@@ -151,7 +257,6 @@ class TrustScore {
       if (!followed) passive++;
     }
 
-    // time_since_last_tap: hours since most recent tag_scan, cap 24
     final lastScan = events.cast<EventLog?>().firstWhere(
           (e) => e!.type == EventType.tagScan,
           orElse: () => null,
@@ -161,7 +266,6 @@ class TrustScore {
         : DateTime.now().difference(lastScan.timestamp).inMinutes / 60.0;
     final hours = hoursRaw.clamp(0.0, 24.0);
 
-    // tap_clustering: same objectId scanned 2+ times in any 5-min window
     var clustering = 0;
     final scans = asc.where((e) => e.type == EventType.tagScan).toList();
     for (var i = 0; i < scans.length; i++) {
@@ -172,7 +276,6 @@ class TrustScore {
       }
     }
 
-    // streak_days: consecutive days ending today with ≥1 tag_scan
     final scanDays = scans.map((e) => e.dateKey).toSet();
     var streak = 0;
     var day = DateTime.now();
@@ -328,6 +431,7 @@ class _PeakHoursCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final top = peaks.take(3).toList();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -336,13 +440,13 @@ class _PeakHoursCard extends StatelessWidget {
           children: [
             Text('Anxiety peak hours', style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
-            if (peaks.isEmpty)
+            if (top.isEmpty)
               Text(
                 'Not enough data yet.',
                 style: theme.textTheme.bodySmall,
               )
             else
-              ...peaks.map(
+              ...top.map(
                 (e) => ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,

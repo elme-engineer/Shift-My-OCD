@@ -7,12 +7,6 @@ import '../../models/tracked_object.dart';
 import '../../services/analytics_service.dart';
 import '../../services/nfc_service.dart';
 
-/// Reads an NFC tag and:
-///   - if the tag's UID matches an existing object → log a tag_scan
-///   - if not → prompt the user to associate the tag with one of
-///     their objects, then log the scan.
-///
-/// Demo path is QR; this is the "we also support NFC" feature.
 class NfcScanScreen extends StatefulWidget {
   const NfcScanScreen({super.key});
 
