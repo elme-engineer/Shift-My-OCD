@@ -8,6 +8,7 @@ import '../../services/analytics_service.dart';
 import '../analytics/analytics_screen.dart';
 import '../objects/objects_screen.dart';
 import '../scan/qr_scan_screen.dart';
+import '../scan/nfc_scan_screen.dart';
 
 /// Root screen post-auth. Owns the bottom navigation (Dashboard /
 /// Objects / Analytics) and renders the dashboard inline as the
@@ -85,6 +86,8 @@ class _DashboardTabState extends State<_DashboardTab> {
               const SizedBox(height: AppSpacing.md),
               _ScanCta(onTap: _openScanner),
               const SizedBox(height: AppSpacing.md),
+              _NfcCta(onTap: _openNfcReader),
+              const SizedBox(height: AppSpacing.md),
               _RecentActivity(analytics: _analytics),
             ],
           ),
@@ -98,6 +101,13 @@ class _DashboardTabState extends State<_DashboardTab> {
       MaterialPageRoute(builder: (_) => const QrScanScreen()),
     );
   }
+
+  Future<void> _openNfcReader() async{
+  await Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => const NfcScanScreen())
+    );
+  }
+
 }
 
 class _GreetingCard extends StatelessWidget {
@@ -129,6 +139,62 @@ class _GreetingCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NfcCta extends StatelessWidget{
+    const _NfcCta({required this.onTap});
+    final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            Icon(
+              Icons.nfc_rounded,
+              size: 36,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Put the phone close to check the tag',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  Text(
+                    'Check a NFC tag.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer
+                          .withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
 
 class _ScanCta extends StatelessWidget {

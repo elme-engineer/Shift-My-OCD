@@ -203,12 +203,7 @@ class _ObjectCard extends StatelessWidget {
 
   static String _lastCheckedLabel(DateTime? when) {
     if (when == null) return 'Never checked';
-    final diff = DateTime.now().difference(when);
-    if (diff.inSeconds < 60) return 'Checked just now';
-    if (diff.inMinutes < 60) return 'Checked ${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return 'Checked ${diff.inHours}h ago';
-    if (diff.inDays < 7) return 'Checked ${diff.inDays}d ago';
-    return 'Checked ${DateFormat.yMMMd().format(when)}';
+    return 'Checked ${DateFormat.yMMMd().add_jm().format(when)}';
   }
 }
 
