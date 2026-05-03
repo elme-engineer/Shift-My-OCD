@@ -12,7 +12,7 @@ import 'services/auth_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Firebase + offline persistence (default-on, but explicit is fine).
+  // 1. Firebase + offline persistence
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -20,7 +20,7 @@ Future<void> main() async {
     persistenceEnabled: true,
   );
 
-  // 2. Make sure we have an (anonymous) UID before any service runs.
+  // 2. Make sure we have an anonymous UID before any service runs.
   final auth = AuthService();
   await auth.ensureSignedIn();
 
@@ -40,7 +40,7 @@ class ShiftMyOcdApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Shift My OCD',
+      title: 'Moddo',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: const HomeScreen(),

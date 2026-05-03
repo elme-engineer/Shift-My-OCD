@@ -29,7 +29,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Analytics'),
+        title: const Text('Profile'),
         actions: [
           IconButton(
             tooltip: _exportStage == null
@@ -122,7 +122,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   /// Builds the structured payload the LLM sees. Indexes objects by id
-  /// so we can attach human-readable names (not "obj_xyz") to scan counts.
   LlmReportContext _buildLlmContext({
     required List<EventLog> events,
     required List<TrackedObject> objects,

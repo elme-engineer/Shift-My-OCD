@@ -16,9 +16,6 @@ import '../../services/qr_service.dart';
 ///   3. Look up the object by id
 ///   4. Log a tag_scan + show success
 ///
-/// We auto-pop on success so the user lands back on the previous
-/// screen with the toast still visible. Errors keep the scanner
-/// open with a brief snackbar so they can try again.
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
 

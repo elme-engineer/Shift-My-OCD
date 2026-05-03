@@ -7,9 +7,6 @@ import '../services/analytics_service.dart';
 ///
 /// Install once at app start, after Firebase + auth are ready:
 ///
-///   final observer = LifecycleObserver(analytics);
-///   WidgetsBinding.instance.addObserver(observer);
-///   observer.logInitialOpen(); // count the cold start too
 class LifecycleObserver with WidgetsBindingObserver {
   LifecycleObserver(this._analytics);
 

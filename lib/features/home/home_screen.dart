@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/icon_catalog.dart';
 import '../../core/theme.dart';
-import '../../models/event_log.dart';
 import '../../models/tracked_object.dart';
 import '../../services/analytics_service.dart';
 import '../analytics/analytics_screen.dart';
 import '../objects/objects_screen.dart';
-import '../scan/qr_scan_screen.dart';
 import '../scan/nfc_scan_screen.dart';
+import '../scan/qr_scan_screen.dart';
 
-/// Root screen post-auth. Owns the bottom navigation (Dashboard /
-/// Objects / Analytics) and renders the dashboard inline as the
-/// first tab. Scan is launched as a full-screen route from buttons.
+/// Root screen post-auth. Owns the bottom navigation (Home / Tags /
+/// Profile) and renders the dashboard inline as the first tab.
+/// Scan is launched as a full-screen route from the dashboard CTAs.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,14 +23,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
-  // IndexedStack so each tab keeps its state — Analytics in
-  // particular shouldn't refetch + re-aggregate on every switch.
   static const _tabs = <Widget>[
     _DashboardTab(),
     ObjectsScreen(),
     AnalyticsScreen(),
   ];
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -45,14 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.sensors_outlined),
-            selectedIcon: Icon(Icons.sensors),
-            label: 'Objects',
+            icon: Icon(Icons.crop_free_outlined),
+            selectedIcon: Icon(Icons.crop_free_rounded),
+            label: 'Tags',
           ),
           NavigationDestination(
-            icon: Icon(Icons.insights_outlined),
-            selectedIcon: Icon(Icons.insights),
-            label: 'Analytics',
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person_sharp),
+            label: 'Profile',
           ),
         ],
       ),
@@ -75,20 +73,24 @@ class _DashboardTabState extends State<_DashboardTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Shift My OCD')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _GreetingCard(),
+              const _GreetingCard(),
               const SizedBox(height: AppSpacing.md),
               _ScanCta(onTap: _openScanner),
               const SizedBox(height: AppSpacing.md),
               _NfcCta(onTap: _openNfcReader),
               const SizedBox(height: AppSpacing.md),
-              _RecentActivity(analytics: _analytics),
+              _LastChecked(analytics: _analytics),
             ],
           ),
         ),
@@ -102,100 +104,72 @@ class _DashboardTabState extends State<_DashboardTab> {
     );
   }
 
-  Future<void> _openNfcReader() async{
-  await Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const NfcScanScreen())
+  Future<void> _openNfcReader() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NfcScanScreen()),
     );
   }
-
 }
 
+// --- greeting + logo -------------------------------------------------
+
 class _GreetingCard extends StatelessWidget {
+  const _GreetingCard();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hour = DateTime.now().hour;
     final greeting = hour < 12
-        ? 'Good morning'
+        ? 'Good morning User'
         : hour < 18
-            ? 'Good afternoon'
-            : 'Good evening';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(greeting, style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'When the urge to check hits, scan the object instead.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            ? 'Good afternoon User'
+            : 'Good evening User';
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(greeting, style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Scan the objects to complete the tasks.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          const _AppLogo(),
+        ],
       ),
     );
   }
 }
 
-class _NfcCta extends StatelessWidget{
-    const _NfcCta({required this.onTap});
-    final VoidCallback onTap;
+class _AppLogo extends StatelessWidget {
+  const _AppLogo();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          children: [
-            Icon(
-              Icons.nfc_rounded,
-              size: 36,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Put the phone close to check the tag',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  Text(
-                    'Check a NFC tag.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer
-                          .withValues(alpha: 0.8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ],
-        ),
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Image.asset(
+        'assets/images/DomoLogo.png',
+        fit: BoxFit.contain,
       ),
     );
   }
-
 }
+
+// --- CTAs ------------------------------------------------------------
 
 class _ScanCta extends StatelessWidget {
   const _ScanCta({required this.onTap});
@@ -252,9 +226,67 @@ class _ScanCta extends StatelessWidget {
   }
 }
 
-class _RecentActivity extends StatelessWidget {
-  const _RecentActivity({required this.analytics});
+class _NfcCta extends StatelessWidget {
+  const _NfcCta({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            Icon(
+              Icons.nfc_rounded,
+              size: 36,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Put the phone close to check the tag',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  Text(
+                    'Check a NFC tag.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer
+                          .withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- last checked ----------------------------------------------------
+class _LastChecked extends StatelessWidget {
+  const _LastChecked({required this.analytics});
   final AnalyticsService analytics;
+
+  static const _maxItems = 5;
 
   @override
   Widget build(BuildContext context) {
@@ -271,47 +303,41 @@ class _RecentActivity extends StatelessWidget {
                 bottom: AppSpacing.sm,
               ),
               child: Text(
-                'Recent activity',
+                'Last checked',
                 style: theme.textTheme.titleMedium,
               ),
             ),
-            // Outer stream: objects (small, rarely changes).
-            // We index them by id so the inner builder can resolve
-            // each tag_scan event to its real-world name + icon
-            // without N round trips to Firestore.
             StreamBuilder<List<TrackedObject>>(
               stream: analytics.watchObjects(),
-              builder: (context, objSnap) {
-                final objectsById = {
-                  for (final o in (objSnap.data ?? const <TrackedObject>[]))
-                    o.id: o,
-                };
-                return StreamBuilder<List<EventLog>>(
-                  stream: analytics.watchEvents(limit: 8),
-                  builder: (context, evSnap) {
-                    if (!evSnap.hasData) {
-                      return const Padding(
-                        padding: EdgeInsets.all(AppSpacing.md),
-                        child: LinearProgressIndicator(),
-                      );
-                    }
-                    final events = evSnap.data!;
-                    if (events.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: Text(
-                          'Nothing logged yet. Add an object and scan it to start.',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      );
-                    }
-                    return Column(
-                      children: [
-                        for (final e in events)
-                          _eventTile(e, objectsById[e.objectId]),
-                      ],
-                    );
-                  },
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(AppSpacing.md),
+                    child: LinearProgressIndicator(),
+                  );
+                }
+
+                // Filter to objects with a check timestamp, sort by
+                // most recent first, take top N.
+                final checked = snap.data!
+                    .where((o) => o.lastCheckedAt != null)
+                    .toList()
+                  ..sort((a, b) =>
+                      b.lastCheckedAt!.compareTo(a.lastCheckedAt!));
+                final top = checked.take(_maxItems).toList();
+
+                if (top.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Text(
+                      'Nothing checked yet. Scan an object to start.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [for (final o in top) _objectTile(o)],
                 );
               },
             ),
@@ -321,39 +347,18 @@ class _RecentActivity extends StatelessWidget {
     );
   }
 
-  /// Builds a tile for an event. For tag_scan events we look up the
-  /// matching [TrackedObject] (may be null if it was deleted) so we
-  /// can render the actual name + icon instead of generic copy.
-  Widget _eventTile(EventLog e, TrackedObject? obj) {
-    final isOpen = e.type == EventType.appOpen;
-
-    final IconData icon;
-    final String title;
-    if (isOpen) {
-      icon = Icons.phone_android;
-      title = 'App opened';
-    } else if (obj != null) {
-      icon = iconFor(obj.iconKey);
-      title = '${obj.name} checked';
-    } else {
-      // Object existed when scanned but has since been deleted.
-      icon = Icons.task_alt;
-      title = 'Object checked';
-    }
-
+  Widget _objectTile(TrackedObject obj) {
     return ListTile(
       dense: true,
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(_relative(e.timestamp)),
+      leading: Icon(iconFor(obj.iconKey)),
+      title: Text(obj.name),
+      subtitle: Text(_relative(obj.lastCheckedAt!)),
     );
   }
 
-  static String _relative(DateTime t) {
-    final d = DateTime.now().difference(t);
-    if (d.inSeconds < 60) return 'Just now';
-    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-    if (d.inHours < 24) return '${d.inHours}h ago';
-    return '${d.inDays}d ago';
+  static String _relative(DateTime? t) {
+    if (t == null) return 'Never checked';
+    return 'Checked ${DateFormat.yMMMd().add_jm().format(t)}';
   }
+
 }

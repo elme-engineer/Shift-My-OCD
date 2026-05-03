@@ -5,6 +5,7 @@ import '../../core/icon_catalog.dart';
 import '../../core/theme.dart';
 import '../../models/tracked_object.dart';
 import '../../services/analytics_service.dart';
+import '../export/qr_export_service.dart';
 import 'object_qr_screen.dart';
 
 class ObjectsScreen extends StatefulWidget {
@@ -16,11 +17,31 @@ class ObjectsScreen extends StatefulWidget {
 
 class _ObjectsScreenState extends State<ObjectsScreen> {
   final _analytics = AnalyticsService();
+  final _qrExport = QrExportService();
+
+  // Tracks bulk-export state so the app bar action can show a spinner
+  // and disable itself while the PDF is being built and shared.
+  bool _exporting = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tagged objects')),
+      appBar: AppBar(
+        title: const Text('Tagged objects'),
+        actions: [
+          IconButton(
+            tooltip: _exporting ? 'Exporting…' : 'Export all QR codes',
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.print_outlined),
+            onPressed: _exporting ? null : _onExportAll,
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAddSheet,
         icon: const Icon(Icons.add),
@@ -101,6 +122,32 @@ class _ObjectsScreenState extends State<ObjectsScreen> {
       ),
     );
     if (ok ?? false) await _analytics.deleteObject(obj.id);
+  }
+
+  /// Snapshots the current objects list and asks QrExportService to
+  /// build + share the PDF. Empty list → snackbar instead of a blank PDF.
+  Future<void> _onExportAll() async {
+    setState(() => _exporting = true);
+    try {
+      final objects = await _analytics.watchObjects().first;
+      if (objects.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No objects to export yet.')),
+          );
+        }
+        return;
+      }
+      await _qrExport.exportAll(objects);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Export failed: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 }
 
@@ -275,7 +322,6 @@ class _AddObjectSheetState extends State<_AddObjectSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      // lift above the keyboard
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
@@ -376,7 +422,7 @@ class _AddObjectSheetState extends State<_AddObjectSheet> {
     try {
       await widget.analytics.createObject(
         name: _nameCtrl.text,
-        description: _descCtrl.text, // service trims it
+        description: _descCtrl.text,
         iconKey: _iconKey,
       );
       if (mounted) Navigator.of(context).pop();

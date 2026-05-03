@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// Curated icon set offered when adding an object.
-///
-/// We store the *key* (string) on Firestore — never the IconData
-/// codePoint — so Flutter's icon tree-shaker doesn't bail out and
-/// ship the entire MaterialIcons font in release builds.
 const Map<String, IconData> kIconCatalog = {
   'door': Icons.door_front_door,
   'lock': Icons.lock_outline,

@@ -8,21 +8,6 @@ import '../models/event_log.dart';
 /// summary of the user's week, intended to sit at the top of the
 /// PDF export their therapist reads.
 ///
-/// Why Gemini for the hackathon: free tier (no credit card required —
-/// though EU accounts may need a billing account attached to satisfy
-/// region rules), gemini-2.5-flash gives 10 RPM / 250 RPD which is
-/// plenty for a demo, and the 2-paragraph output is comfortably within
-/// the model's strengths.
-///
-/// Privacy note: the free tier MAY use prompts/responses to improve
-/// Google's models. We send aggregated stats (counts, hours, object
-/// names) — no raw timestamps and no UID. For a hackathon demo that's
-/// fine; in prod you'd want a paid tier with the data-use opt-out
-/// or a backend proxy that handles policy.
-///
-/// Key handling: read at compile time via
-/// `--dart-define=GEMINI_API_KEY=...`. If the key isn't set the service
-/// returns null and the export proceeds without a summary.
 class LlmService {
   static const _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const _model = 'gemini-2.5-flash';
@@ -33,8 +18,7 @@ class LlmService {
 
   /// Generates the summary text. Returns null on any failure
   /// (no key, network error, timeout, malformed response, content
-  /// blocked by safety filters). Callers should treat null as
-  /// "skip this section".
+  /// blocked by safety filters).
   Future<String?> generateSummary(LlmReportContext ctx) async {
     if (!isConfigured) return null;
 

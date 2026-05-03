@@ -5,24 +5,46 @@ import '../../core/icon_catalog.dart';
 import '../../core/theme.dart';
 import '../../models/tracked_object.dart';
 import '../../services/qr_service.dart';
+import '../export/qr_export_service.dart';
 
-/// Renders the JSON-encoded QR for a single object so the user (or
-/// the demo judges) can print or screenshot it and stick it on
-/// the real-world thing.
-class ObjectQrScreen extends StatelessWidget {
-  ObjectQrScreen({super.key, required this.object});
+class ObjectQrScreen extends StatefulWidget {
+  const ObjectQrScreen({super.key, required this.object});
 
   final TrackedObject object;
+
+  @override
+  State<ObjectQrScreen> createState() => _ObjectQrScreenState();
+}
+
+class _ObjectQrScreenState extends State<ObjectQrScreen> {
   final _qr = QrService();
+  final _qrExport = QrExportService();
+  bool _exporting = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final object = widget.object;
     final payload = _qr.encode(object.id);
     final hasDesc = object.description.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: Text(object.name)),
+      appBar: AppBar(
+        title: Text(object.name),
+        actions: [
+          IconButton(
+            tooltip: _exporting ? 'Exporting…' : 'Export QR to PDF',
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.print_outlined),
+            onPressed: _exporting ? null : _onExport,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -44,9 +66,6 @@ class ObjectQrScreen extends StatelessWidget {
               ),
 
               // Description sits between the title and the QR code.
-              // It's the user's own reminder of what to actually
-              // check ("did I lock both bolts?") and reads while
-              // they're already looking at the QR to scan.
               if (hasDesc) ...[
                 const SizedBox(height: AppSpacing.md),
                 Container(
@@ -117,5 +136,22 @@ class ObjectQrScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Hands the current object to QrExportService for a single-page
+  /// PDF (centered, large QR, name + description). 
+  Future<void> _onExport() async {
+    setState(() => _exporting = true);
+    try {
+      await _qrExport.exportSingle(widget.object);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Export failed: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 }

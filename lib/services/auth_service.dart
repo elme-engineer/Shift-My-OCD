@@ -8,7 +8,6 @@ class AuthService {
 
   final FirebaseAuth _auth;
 
-  /// Current user's UID, or null if sign-in hasn't completed yet.
   String? get currentUid => _auth.currentUser?.uid;
 
   /// Stream of UID changes — useful for gating navigation
